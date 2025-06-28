@@ -1,0 +1,72 @@
+SELECT
+ci.cst_id,
+ci.cst_key,
+ci.cst_firstname,
+ci.cst_lastname,
+ci.cst_marital_status,
+ci.cst_gndr,
+ci.cst_create_date,
+ca.bdate,
+ca.gen,
+la.cntry
+FROM silver.crm_cust_info AS ci
+LEFT JOIN silver.erp_cust_az12 AS ca
+ON        ci.cst_key = ca.cid 
+LEFT JOIN silver.erp_loc_a101 AS la
+ON        ci.cst_key = la.cid
+
+-- NOTE: After joining table, if there are any duplicates occured that are obtained due to the join logic
+
+-- TO check any duplicates 
+-- Exception: No Result
+SELECT cst_id, COUNT(*) FROM
+  (SELECT
+		ci.cst_id,
+		ci.cst_key,
+		ci.cst_firstname,
+		ci.cst_lastname,
+		ci.cst_marital_status,
+		ci.cst_gndr,
+		ci.cst_create_date,
+		ca.bdate,
+		ca.gen,
+		la.cntry
+		FROM silver.crm_cust_info AS ci
+		LEFT JOIN silver.erp_cust_az12 AS ca
+		ON        ci.cst_key = ca.cid 
+		LEFT JOIN silver.erp_loc_a101 AS la
+		ON        ci.cst_key = la.cid
+) t GROUP BY cst_id
+HAVING COUNT(*) >1
+
+
+-- Data integration
+SELECT DISTINCT
+ci.cst_gndr,
+ca.gen,
+CASE WHEN ci.cst_gndr != 'n/a' THEN ci.cst_gndr -- CRM is the Master for gender info
+     ELSE COALESCE(ca.gen, 'n/a')
+END AS new_gen
+FROM silver.crm_cust_info AS ci
+LEFT JOIN silver.erp_cust_az12 AS ca
+ON        ci.cst_key = ca.cid 
+LEFT JOIN silver.erp_loc_a101 AS la
+ON        ci.cst_key = la.cid
+ORDER BY 1,2
+-- NOTE: Nulls often come from joined tables! bcz if SQL finds no match
+
+
+SELECT * FROM gold.dim_customers
+
+SELECT * FROM gold.dim_products
+
+SELECT * FROM gold.fact_sales
+
+-- Forigen key Integrity 
+SELECT *
+FROM gold.fact_sales as f
+LEFT JOIN gold.dim_customers as c
+ON c.customer_key = f.customer_key
+LEFT JOIN gold.dim_products as P
+ON p.product_key = f.product_key
+WHERE p.product_key IS NULL
